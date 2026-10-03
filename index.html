@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Điểm Lagrange Earth – Moon Realtime · Mayonaka Heart Tune</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#0c1430;      /* nền đêm */
+  --plate:#141f45;      /* bảng điều khiển */
+  --plate-2:#1b2958;
+  --line:#2a3a72;
+  --moon:#ece6d3;       /* ánh trăng */
+  --dim:#94a0c4;        /* chữ phụ */
+  --amber:#f2b84b;      /* đèn dò sóng */
+  --sans:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --serif:"Instrument Serif",Georgia,"Times New Roman",serif;
+  
+  /* Màu sắc đặc trưng riêng từng điểm Lagrange */
+  --c-l1:#f43f5e;
+  --c-l2:#a855f7;
+  --c-l3:#06b6d4;
+  --c-l4:#eab308;
+  --c-l5:#10b981;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--night);color:var(--moon);font-family:var(--sans);font-size:14px;line-height:1.5;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--amber)}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+.app{display:grid;height:100%;grid-template-columns:1fr 340px;grid-template-rows:auto 1fr auto;grid-template-areas:"bar bar" "stage panel" "ctl ctl"}
+.bar{grid-area:bar;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)}
+.bar h1{margin:0;font-family:var(--serif);font-weight:400;font-size:26px;line-height:1;letter-spacing:0;white-space:nowrap}
+.bar p{margin:2px 0 0;color:var(--dim);font-size:12.5px}
+.seg{display:inline-flex;background:var(--plate);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:none;color:var(--dim);padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:500;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--moon);color:var(--night)}
+
+.stage{grid-area:stage;position:relative;overflow:hidden;min-height:0}
+#sky{position:absolute;inset:0;width:100%;height:100%;display:block}
+#marks{position:absolute;inset:0;pointer-events:none}
+.mk{position:absolute;left:0;top:0;pointer-events:auto;border:0;background:none;padding:0;transform-origin:0 0}
+
+/* Định dạng các điểm L mang màu sắc riêng */
+.lp{width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;display:grid;place-items:center;font-family:var(--serif);font-size:19px;}
+.lp::before{content:"";position:absolute;inset:10px;border-radius:50%;border:1.5px solid currentColor}
+.lp.stable::before{border-style:solid;}
+.lp.unstable::before{border-style:dashed}
+.lp span{position:relative;top:-21px}
+
+.lp[data-lp="L1"] { color: var(--c-l1); background: radial-gradient(circle,rgba(244,63,94,.16),rgba(244,63,94,0) 70%); }
+.lp[data-lp="L2"] { color: var(--c-l2); background: radial-gradient(circle,rgba(168,85,247,.16),rgba(168,85,247,0) 70%); }
+.lp[data-lp="L3"] { color: var(--c-l3); background: radial-gradient(circle,rgba(6,182,212,.16),rgba(6,182,212,0) 70%); }
+.lp[data-lp="L4"] { color: var(--c-l4); background: radial-gradient(circle,rgba(234,179,8,.16),rgba(234,179,8,0) 70%); }
+.lp[data-lp="L4"].stable::before { background: rgba(234,179,8,.18); }
+.lp[data-lp="L5"] { color: var(--c-l5); background: radial-gradient(circle,rgba(16,185,129,.16),rgba(16,185,129,0) 70%); }
+.lp[data-lp="L5"].stable::before { background: rgba(16,185,129,.18); }
+
+.body{width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%}
+
+/* Phong cách riêng cho nút Mặt Trăng có thể kéo xoay */
+.body.moon-body {
+  cursor: grab;
+  box-shadow: 0 0 10px rgba(236,230,211,0.7);
+  transition: box-shadow 0.2s;
+}
+.body.moon-body:hover {
+  box-shadow: 0 0 16px rgba(242,184,75,1);
+}
+.body.moon-body:active {
+  cursor: grabbing;
+}
+
+.tok{display:flex;align-items:center;gap:5px;margin:0;padding:2px 8px 2px 2px;border-radius:999px;background:rgba(12,20,48,.88);border:1px solid var(--c);font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 0 0 3px rgba(12,20,48,.35);transition:border-color .2s, opacity .2s;cursor:grab;touch-action:none;user-select:none}
+.tok:active,.tok.dragging{cursor:grabbing;z-index:10;box-shadow:0 0 12px var(--c)}
+.tok i{width:18px;height:18px;border-radius:50%;background:var(--c);display:block;flex:none}
+.tok.ghost{opacity:.55;border-style:dashed}
+.tok.unrevealed{opacity:.45;border-style:dashed;filter:grayscale(35%)}
+
+/* Góc chờ nhân vật chưa xếp */
+.waiting-box {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  background: rgba(20, 31, 69, 0.82);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.legend{position:absolute;right:12px;top:12px;max-width:230px;background:rgba(20,31,69,.82);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:11.5px;color:var(--dim)}
+.legend b{color:var(--moon);font-weight:600}
+.legend div{display:flex;align-items:center;gap:8px;margin:3px 0}
+.legend svg{flex:none}
+
+.toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);max-width:min(92%,520px);background:var(--plate);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12.5px;opacity:0;transition:opacity .25s;pointer-events:none;text-align:center;z-index:15}
+.toast.on{opacity:1}
+
+.panel{grid-area:panel;border-left:1px solid var(--line);background:var(--plate);overflow-y:auto;padding:18px 18px 22px}
+.panel h2{margin:0 0 2px;font-family:var(--serif);font-weight:400;font-size:30px;line-height:1.1;letter-spacing:0}
+.panel .kicker{color:var(--dim);font-size:12.5px;margin-bottom:12px}
+.panel p{margin:0 0 10px;max-width:60ch}
+.panel .state{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;margin-bottom:12px}
+.state.st{background:rgba(242,184,75,.16);color:var(--amber)}
+.state.un{background:rgba(148,160,196,.16);color:var(--dim)}
+.panel h3{margin:16px 0 6px;font-size:13px;font-weight:600;color:var(--moon)}
+.ev{border-left:2px solid var(--c,var(--line));padding:2px 0 2px 10px;margin:0 0 10px}
+.ev.dimmed{opacity:.6}
+.panel .small{font-size:12.5px;color:var(--dim)}
+.panel .btns{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+.panel .btns button{border:1px solid var(--line);background:var(--plate-2);border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:600}
+.panel .btns button.primary{background:var(--amber);border-color:var(--amber);color:var(--night)}
+.panel textarea,.fform input,.fform select{background:var(--night);color:var(--moon);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;font-size:13px}
+.panel textarea{width:100%;resize:vertical}
+.panel code{font-size:12px;color:var(--amber)}
+.fform{display:grid;gap:8px;margin-top:4px}
+.fl{display:grid;gap:4px;font-size:12.5px;color:var(--dim)}
+.fl input{width:120px}
+.fhead,.frow{display:grid;grid-template-columns:78px 1fr 1fr;gap:6px;align-items:center}
+.fhead{font-size:11.5px;color:var(--dim);margin-top:4px}
+.fname{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px}
+.fname i{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+.frow select{min-width:0}
+.chk{display:flex;gap:8px;align-items:center;font-size:12.5px}
+.ferr{margin:0;color:#fda4af;font-size:12.5px}
+.ferr:empty{display:none}
+.ch.add{border-style:dashed;min-width:48px;text-align:center}
+.ch.add b{color:var(--amber);font-size:26px}
+.ch.local{border-style:dashed}
+.ev strong{font-weight:600}
+.ev small{display:block;color:var(--dim);font-size:12px}
+.panel .open{display:inline-block;margin-top:6px;font-weight:600;text-decoration:none;border-bottom:1px solid rgba(242,184,75,.4)}
+.panel .close{display:none}
+
+.ctl{grid-area:ctl;border-top:1px solid var(--line);padding:8px 12px 10px;display:flex;flex-direction:column;gap:8px;transition:all .25s ease;background:var(--night)}
+.ctl-bar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fold-btn{border:1px solid var(--line);background:var(--plate);color:var(--dim);border-radius:6px;padding:3px 10px;font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:color .2s,background .2s}
+.fold-btn:hover{color:var(--moon);background:var(--plate-2)}
+.ctl.collapsed .ctl-body{display:none}
+.ctl.collapsed{padding:4px 12px}
+
+.tl{display:flex;align-items:stretch;gap:6px;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
+.play{flex:none;border:1px solid var(--line);background:var(--plate);border-radius:10px;padding:0 12px;font-size:12.5px;font-weight:600}
+.ch{flex:none;min-width:58px;border:1px solid var(--line);background:var(--plate);border-radius:10px;padding:3px 8px 4px;text-align:left}
+.ch b{display:block;font-family:var(--serif);font-weight:400;font-size:22px;line-height:1.05}
+.ch span{display:flex;gap:3px;margin-top:2px}
+.ch span i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+.ch span i.dimmed{opacity:.4}
+.ch small{font-size:10.5px;color:var(--dim)}
+.ch[aria-current="step"]{border-color:var(--amber);background:var(--plate-2)}
+.ch[aria-current="step"] b{color:var(--amber)}
+
+.drop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+.drop button{border:1px solid var(--line);background:var(--plate);border-radius:8px;padding:3px 9px;color:var(--moon);font-size:12.5px}
+.drop button.lbtn{font-family:var(--serif);font-size:16px;padding:0 9px}
+.drop .sep{width:1px;height:18px;background:var(--line);margin:0 2px}
+
+.sim-controls{display:flex;align-items:center;gap:10px 14px;padding:4px 0;border-bottom:1px dashed var(--line);margin-bottom:6px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+.sim-controls input[type="range"]{width:90px;accent-color:var(--amber)}
+
+@media (max-width:999px){
+  .app{grid-template-columns:1fr;grid-template-areas:"bar" "stage" "ctl"}
+  .panel{position:fixed;right:0;top:0;bottom:0;width:min(360px,92vw);z-index:20;transform:translateX(105%);transition:transform .25s ease;box-shadow:-12px 0 30px rgba(0,0,0,.4)}
+  .panel.open-sheet{transform:none}
+  .panel .close{display:block;position:absolute;right:10px;top:10px;border:1px solid var(--line);background:var(--plate-2);border-radius:8px;width:30px;height:30px;line-height:1}
+  .legend{display:none}
+  .bar h1{font-size:21px}
+  .bar p{display:none}
+}
+.how{display:none;position:absolute;right:12px;top:10px;border:1px solid var(--line);background:var(--plate);border-radius:999px;padding:4px 12px;font-size:12.5px;font-weight:600}
+.panel .lgwrap{display:none}
+.panel .lg div{display:flex;align-items:center;gap:8px;margin:4px 0;color:var(--dim);font-size:12.5px}
+.panel .lg b{color:var(--moon);font-weight:600}
+@media (max-width:999px){.how{display:block}.panel .lgwrap{display:block}}
+@media (max-width:560px){.bar{flex-wrap:wrap;gap:8px;padding:8px 12px}.bar h1{font-size:18px}.seg button{padding:5px 10px;font-size:12px}.ctl{padding:4px 8px 6px}}
+@media (prefers-reduced-motion:reduce){.panel,.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div>
+      <h1>Điểm Lagrange Earth – Moon</h1>
+      <p>Năm điểm cân bằng trong hệ hai thiên thể, mô phỏng Moon và các điểm Lagrange quay realtime quanh Earth</p>
+    </div>
+    <div class="seg" role="group" aria-label="Cách nhìn">
+      <button type="button" data-view="ine" aria-pressed="true">Quay quanh Earth (Quán tính)</button>
+      <button type="button" data-view="rot" aria-pressed="false">Đứng yên theo Moon (Quay cùng)</button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="sky" aria-label="Sơ đồ năm điểm Lagrange của hệ Earth – Moon"></canvas>
+    
+    <!-- Góc chờ dành cho nhân vật chưa xếp -->
+    <div id="waitingBox" class="waiting-box" style="display:none;">
+      <span>Chờ xếp:</span>
+    </div>
+
+    <div id="marks"></div>
+    <button type="button" class="how" id="how">Cách xem</button>
+    <div class="legend" id="legend">
+      <div><svg width="22" height="22"><circle cx="11" cy="11" r="7" fill="rgba(242,184,75,.18)" stroke="#f2b84b" stroke-width="1.5"/></svg><span><b>L4, L5</b> ổn định: lệch ra vẫn tự quay về quanh điểm</span></div>
+      <div><svg width="22" height="22"><circle cx="11" cy="11" r="7" fill="none" stroke="#f2b84b" stroke-width="1.5" stroke-dasharray="3 2"/></svg><span><b>L1, L2, L3</b> không ổn định: lệch một chút là trôi đi</span></div>
+      <div><svg width="22" height="10"><path d="M1 5 Q11 -2 21 5" fill="none" stroke="#ece6d3" stroke-opacity=".5"/></svg><span>Đường đồng mức của lực hấp dẫn cộng lực ly tâm</span></div>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <aside class="panel" id="panel" aria-live="polite"></aside>
+
+  <footer class="ctl" id="ctlBar">
+    <div class="ctl-bar">
+      <span style="font-size:12px;color:var(--dim);font-weight:500;">Dòng thời gian & Thử nghiệm</span>
+      <button type="button" class="fold-btn" id="foldBtn" aria-expanded="true">
+        <span id="foldIcon">▼</span> <span id="foldText">Thu gọn khay</span>
+      </button>
+    </div>
+    <div class="ctl-body" id="ctlBody">
+      <div class="sim-controls">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button type="button" id="btnPauseSim" class="fold-btn" style="color:var(--moon)">Tạm dừng quay</button>
+          <span>Tốc độ:</span>
+          <input type="range" id="simSpeedRange" min="0.1" max="3.0" step="0.1" value="1.0">
+          <span id="simSpeedVal" style="color:var(--amber);font-weight:bold;">1.0x</span>
+        </div>
+        
+        <!-- Bảng điều khiển xoay Mặt Trăng -->
+        <div style="display:flex; align-items:center; gap:8px; border-left:1px dashed var(--line); padding-left:10px;">
+          <span>Góc quay Mặt Trăng:</span>
+          <input type="range" id="orbitAngleRange" min="0" max="360" step="1" value="0">
+          <span id="orbitAngleVal" style="color:var(--amber);font-weight:bold; min-width:36px;">0°</span>
+          <button type="button" class="fold-btn" data-rotate="45">+45°</button>
+          <button type="button" class="fold-btn" data-rotate="90">+90°</button>
+          <button type="button" class="fold-btn" data-rotate="-45">-45°</button>
+        </div>
+      </div>
+
+      <div class="tl" id="tl" role="group" aria-label="Dòng thời gian theo chap"></div>
+      <div class="drop" style="margin-top:6px;">
+        <span>Thả thử một vật thể nhỏ:</span>
+        <button type="button" class="lbtn" data-drop="L1" style="color:var(--c-l1);border-color:rgba(244,63,94,.4)">L1</button>
+        <button type="button" class="lbtn" data-drop="L2" style="color:var(--c-l2);border-color:rgba(168,85,247,.4)">L2</button>
+        <button type="button" class="lbtn" data-drop="L3" style="color:var(--c-l3);border-color:rgba(6,182,212,.4)">L3</button>
+        <button type="button" class="lbtn" data-drop="L4" style="color:var(--c-l4);border-color:rgba(234,179,8,.4)">L4</button>
+        <button type="button" class="lbtn" data-drop="L5" style="color:var(--c-l5);border-color:rgba(16,185,129,.4)">L5</button>
+        <button type="button" data-drop="all">Thả cả năm</button>
+        <span class="sep"></span>
+        <button type="button" id="clear">Dọn vật thể</button>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* =====================================================================
+   DỮ LIỆU CỐ ĐỊNH & MÀU SẮC ĐIỂM LAGRANGE
+   ===================================================================== */
+const NOTION = "https://app.notion.com/p/";
+
+// Màu sắc đặc trưng cho từng điểm Lagrange
+const LP_COLORS = {
+  L1: { hex: "#f43f5e", rgb: "244,63,94" },
+  L2: { hex: "#a855f7", rgb: "168,85,247" },
+  L3: { hex: "#06b6d4", rgb: "6,182,212" },
+  L4: { hex: "#eab308", rgb: "234,179,8" },
+  L5: { hex: "#10b981", rgb: "16,185,129" }
+};
+
+const NHAN_VAT = {
+  rikka:   { ten: "Rikka",   mau: "#f59e0b", trang: "3ca6029a753480e1bf84de4bbccd6913" },
+  nene:    { ten: "Nene",    mau: "#a78bfa", trang: "3ca6029a753480ab89b3d551382d6953" },
+  iko:     { ten: "Iko",     mau: "#34d399", trang: "3ca6029a753480ba8175e5b3afedb668" },
+  shinobu: { ten: "Shinobu", mau: "#f472b6", trang: "3ca6029a753480248d94ef72cf88e3ad", unrevealed: true, chuaRo: "Shinobu chưa được xếp vị trí chính thức. Bạn có thể kéo thả cô ấy vào vị trí mong muốn." },
+  apollo:  { ten: "Apollo",  mau: "#e879f9", trang: "3ca6029a753480fa8343fa3b2e37e715" },
+  arisu:   { ten: "Arisu",   mau: "#60a5fa", trang: "3ca6029a7534809ea7f6c12d6b793b37" }
+};
+
+const DONG_THOI_GIAN = [
+  { chap: 29,  di: [{ ai: "rikka", den: "L5" }],
+    ghi: "Rikka nói tên bài hát cô định sáng tác để hát cho “người ấy” nghe, một lời tỏ tình gián tiếp. Khung hình đó nằm bên dưới Moon, nên Rikka ở L5." },
+  { chap: 36,  di: [{ ai: "nene", den: "L2" }],
+    ghi: "Nene ở chung phòng 831 với Arisu và rủ xem pháo hoa. Bức tranh Moon và sao băng cho thấy Nene ở vị trí L2." },
+  { chap: 37,  di: [{ ai: "nene", den: "L2" }],
+    ghi: "Nene chủ động chuyển sang nằm chung giường với Arisu. Bức tranh Moon lại xuất hiện, và giờ cô ở L2." },
+  { chap: 50,  di: [{ ai: "rikka", den: "L4" }],
+    ghi: "Rikka hỏi “rendezvous with me?”, tương đương lời tỏ tình và rủ hẹn hò. Trời chiều tối, không nằm dưới Moon, nên chỉ còn L4." },
+  { chap: 96,  di: [{ ai: "iko", den: "L2" }],
+    ghi: "Đi riêng với Arisu sau khi trốn khỏi trường, Iko tỏ tình trực diện. Vị trí đứng của hai người là L2." },
+  { chap: 97,  di: [{ ai: "iko", den: "L5" }],
+    ghi: "Moon đã đổi sang L5: một lần dịch chuyển quỹ đạo." },
+  { chap: 105, di: [{ ai: "rikka", den: "L5" }],
+    ghi: "Rikka dùng cành cây vẽ các điểm Lagrange. Cành cây vô tình chỉ về hướng L5, như tác giả ám chỉ Rikka đang đứng ở L5." },
+  { chap: 107, di: [
+      { ai: "rikka", den: "L5" },
+      { ai: "nene", den: "L4" },
+      { ai: "iko", den: "L2" },
+      { ai: "arisu", den: "L3" },
+      { ai: "apollo", den: "L1" }
+    ], khuat: true, saoChoi: true,
+    ghi: "Cả nhóm quy tụ tại các điểm Lagrange: Rikka ở L5, Nene ở L4, Iko ở L2, Arisu ở L3, và Apollo ở L1." },
+  { chap: 116, di: [{ ai: "apollo", den: "L3" }],
+    ghi: "Apollo xác nhận mỗi lần nói “I love you” cuối chương trình đều chỉ dành cho Arisu. Vị trí đứng xác định ở điểm L3." }
+];
+
+/* Vị trí hiện tại kế thừa nguyên vẹn sau khi chap 116 kết thúc (Apollo ở L3) */
+const VI_TRI_HIEN_TAI = { rikka: "L5", nene: "L4", iko: "L2", apollo: "L3", arisu: "L3", shinobu: null };
+/* ===================== THÊM / SỬA CHAP NGAY TRÊN TRANG =====================
+   - Bấm "+" trên thanh chap để thêm một chap mới (màn tỏ tình mới, đổi vị trí...).
+   - Chap thêm hoặc sửa trên trang được lưu riêng trên trình duyệt đang dùng.
+   - Muốn ai mở trang cũng thấy: ở bước "Hiện tại" bấm "Lấy mã để lưu vào file",
+     rồi dán đè khối DONG_THOI_GIAN và dòng VI_TRI_HIEN_TAI ở trên.
+   ========================================================================== */
+const DIEM_L = ["L1", "L2", "L3", "L4", "L5"];
+const KHOA_TL = "mht-lagrange-dong-thoi-gian", KHOA_NAY = "mht-lagrange-hien-tai";
+const BAN_GOC_TL = JSON.stringify(DONG_THOI_GIAN), BAN_GOC_NAY = JSON.stringify(VI_TRI_HIEN_TAI);
+function hopLe(st) { return st && Number.isFinite(st.chap) && Array.isArray(st.di) && st.di.length && st.di.every(d => NHAN_VAT[d.ai] && DIEM_L.includes(d.den) && (!d.phu || DIEM_L.includes(d.phu))); }
+function docLuu(khoa, goc, kiemTra) {       // chỉ dùng bản đã lưu nếu file chưa đổi kể từ lúc lưu
+  try { const v = JSON.parse(localStorage.getItem(khoa)); if (v && v.goc === goc && kiemTra(v.data)) return v.data; } catch (_) {}
+  return JSON.parse(goc);
+}
+function ghiLuu(khoa, goc, data) { try { localStorage.setItem(khoa, JSON.stringify({ goc, data })); } catch (_) {} }
+let TL = docLuu(KHOA_TL, BAN_GOC_TL, v => Array.isArray(v) && v.every(hopLe));
+function saveTL() { ghiLuu(KHOA_TL, BAN_GOC_TL, TL); }
+function saveBoard() { ghiLuu(KHOA_NAY, BAN_GOC_NAY, board); }
+function laChapMoi(st) { return !JSON.parse(BAN_GOC_TL).some(g => JSON.stringify(g) === JSON.stringify(st)); }
+const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const TRANG_KIEN_THUC = "3ca6029a7534804097b9fe82e43c9baf";
+const TRANG_TONG_HOP = "3ca6029a753480eb9f14eb027a4453a3";
+
+/* ===================== Vật lý CR3BP ===================== */
+const MU = 0.01215;
+const NGAY_MOI_DON_VI = 27.32 / (2 * Math.PI);
+function omega(x, y) { const r1 = Math.hypot(x + MU, y), r2 = Math.hypot(x - 1 + MU, y); return 0.5 * (x * x + y * y) + (1 - MU) / r1 + MU / r2; }
+function grad(x, y) {
+  const r1 = Math.hypot(x + MU, y), r2 = Math.hypot(x - 1 + MU, y), a = (1 - MU) / (r1 * r1 * r1), b = MU / (r2 * r2 * r2);
+  return [x - a * (x + MU) - b * (x - 1 + MU), y - a * y - b * y];
+}
+function rootX(x) { for (let i = 0; i < 60; i++) { const h = 1e-7, f = grad(x, 0)[0], d = (grad(x + h, 0)[0] - grad(x - h, 0)[0]) / (2 * h); x -= f / d; } return x; }
+const LP = { L1: [rootX(0.8369), 0], L2: [rootX(1.1557), 0], L3: [rootX(-1.005), 0], L4: [0.5 - MU, Math.sqrt(3) / 2], L5: [0.5 - MU, -Math.sqrt(3) / 2] };
+const KM = 384400;
+const DIEM = {
+  L1: { on: false, vi: "Giữa Earth và Moon, cách Moon khoảng " + Math.round((1 - MU - LP.L1[0]) * KM / 1000) + " nghìn km.", ly: "Lực hút của Earth và Moon gần như triệt tiêu nhau ở đây. Chỉ cần lệch một chút, vật sẽ bị kéo về phía Earth hoặc Moon." },
+  L2: { on: false, vi: "Phía sau Moon, cách Moon khoảng " + Math.round((LP.L2[0] - 1 + MU) * KM / 1000) + " nghìn km.", ly: "Cân bằng nhưng không bền: lệch ra là trôi khỏi điểm." },
+  L3: { on: false, vi: "Phía bên kia Earth, đối diện Moon.", ly: "Cũng không bền, nhưng trôi đi chậm hơn L1 và L2 rất nhiều." },
+  L4: { on: true,  vi: "Trên quỹ đạo của Moon, đi trước Moon 60°.", ly: "Ổn định: bị đẩy lệch thì lực Coriolis kéo vật quay vòng quanh điểm." },
+  L5: { on: true,  vi: "Trên quỹ đạo của Moon, đi sau Moon 60°.", ly: "Ổn định giống L4: vật lệch ra vẫn dao động quanh điểm mãi." }
+};
+
+/* ===================== Giao diện & Render Engine ===================== */
+const stage = document.getElementById("stage"), canvas = document.getElementById("sky"), ctx = canvas.getContext("2d");
+const marks = document.getElementById("marks"), panel = document.getElementById("panel"), toastEl = document.getElementById("toast");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let W = 0, H = 0, DPR = 1, S = 200, CX = 0, CY = 0, theta = 0, earthSpin = 0, view = "ine";
+let simSpeed = 1.0, isSimPaused = false;
+
+// Bầu trời sao cố định
+const stars = Array.from({length: 100}, () => ({
+  x: (Math.random() - 0.5) * 2000,
+  y: (Math.random() - 0.5) * 2000,
+  r: Math.random() * 1.3 + 0.3,
+  a: Math.random() * 0.6 + 0.25
+}));
+
+function drawStars() {
+  ctx.save();
+  ctx.translate(CX * DPR, CY * DPR);
+  for (const s of stars) {
+    ctx.fillStyle = "rgba(236,230,211," + s.a + ")";
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+const layer = document.createElement("canvas"); let LD = 0;
+function resize() {
+  const r = stage.getBoundingClientRect(); W = r.width; H = r.height; DPR = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  S = Math.min(W / 2.75, H / 2.3); CX = W / 2 - 0.02 * S; CY = H / 2 + 0.02 * S;
+  buildLayer();
+}
+function toScreen(x, y) { const c = Math.cos(theta), s = Math.sin(theta); return [CX + S * (x * c - y * s), CY - S * (x * s + y * c)]; }
+function worldTransform() { const c = Math.cos(theta), s = Math.sin(theta); ctx.setTransform(DPR * S * c, -DPR * S * s, -DPR * S * s, -DPR * S * c, DPR * CX, DPR * CY); }
+
+const GX0 = -1.75, GX1 = 1.75, GY0 = -1.4, GY1 = 1.4, NX = 280, NY = 220;
+const field = new Float64Array(NX * NY);
+for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const x = GX0 + (GX1 - GX0) * i / (NX - 1), y = GY0 + (GY1 - GY0) * j / (NY - 1); field[j * NX + i] = omega(x, y); }
+const OM4 = omega(LP.L4[0], LP.L4[1]);
+const shade = document.createElement("canvas"); shade.width = NX; shade.height = NY;
+(function () {
+  const sctx = shade.getContext("2d"), img = sctx.createImageData(NX, NY);
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) {
+    const t = Math.exp(-(field[j * NX + i] - OM4) * 9);
+    const k = (j * NX + i) * 4;
+    img.data[k] = 236; img.data[k + 1] = 230; img.data[k + 2] = 211; img.data[k + 3] = Math.round(38 * t * t);
+  }
+  sctx.putImageData(img, 0, 0);
+})();
+function contour(level) {
+  const p = new Path2D(), dx = (GX1 - GX0) / (NX - 1), dy = (GY1 - GY0) / (NY - 1);
+  const X = i => GX0 + i * dx, Y = j => GY0 + j * dy;
+  for (let j = 0; j < NY - 1; j++) for (let i = 0; i < NX - 1; i++) {
+    const a = field[j * NX + i], b = field[j * NX + i + 1], c = field[(j + 1) * NX + i + 1], d = field[(j + 1) * NX + i];
+    const pts = [];
+    if ((a < level) !== (b < level)) pts.push([X(i) + dx * (level - a) / (b - a), Y(j)]);
+    if ((b < level) !== (c < level)) pts.push([X(i + 1), Y(j) + dy * (level - b) / (c - b)]);
+    if ((d < level) !== (c < level)) pts.push([X(i) + dx * (level - d) / (c - d), Y(j + 1)]);
+    if ((a < level) !== (d < level)) pts.push([X(i), Y(j) + dy * (level - a) / (d - a)]);
+    for (let k = 0; k + 1 < pts.length; k += 2) { p.moveTo(pts[k][0], pts[k][1]); p.lineTo(pts[k + 1][0], pts[k + 1][1]); }
+  }
+  return p;
+}
+const thin = [1.4965, 1.5005, 1.52, 1.545, 1.57, 1.62, 1.66, 1.72, 1.8, 1.92, 2.1, 2.45, 3.1].map(contour);
+const sep = ["L1", "L2", "L3"].map(k => contour(omega(LP[k][0], LP[k][1]) - 1e-9));
+
+function buildLayer() {
+  LD = Math.ceil(Math.hypot(W, H) * DPR) + 4; layer.width = LD; layer.height = LD;
+  const c = layer.getContext("2d"), k = DPR * S;
+  c.setTransform(k, 0, 0, -k, LD / 2, LD / 2);
+  c.imageSmoothingEnabled = true; c.drawImage(shade, GX0, GY0, GX1 - GX0, GY1 - GY0);
+  c.lineWidth = 1 / S; c.strokeStyle = "rgba(236,230,211,.17)"; thin.forEach(p => c.stroke(p));
+  c.lineWidth = 1.4 / S; c.strokeStyle = "rgba(242,184,75,.5)"; sep.forEach(p => c.stroke(p));
+  
+  // Trục nối Earth - Moon & Quỹ đạo Moon
+  c.setLineDash([3 / S, 4 / S]); c.strokeStyle = "rgba(242,184,75,.25)"; c.lineWidth = 1 / S;
+  c.beginPath(); c.moveTo(-1.6, 0); c.lineTo(1.6, 0); c.stroke();
+  
+  c.setLineDash([4 / S, 6 / S]); c.strokeStyle = "rgba(236,230,211,.28)"; c.lineWidth = 1 / S; c.beginPath(); c.arc(0, 0, 1 - MU, 0, Math.PI * 2); c.stroke(); c.setLineDash([]);
+  
+  // Earth Glow
+  let g = c.createRadialGradient(-MU, 0, 0, -MU, 0, 0.16); g.addColorStop(0, "rgba(96,165,250,.45)"); g.addColorStop(1, "rgba(96,165,250,0)");
+  c.fillStyle = g; c.beginPath(); c.arc(-MU, 0, 0.16, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#3b82f6"; c.beginPath(); c.arc(-MU, 0, 11 / S, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#86efac"; c.beginPath(); c.arc(-MU - 3 / S, 2 / S, 4 / S, 0, Math.PI * 2); c.fill();
+  
+  // Moon
+  g = c.createRadialGradient(1 - MU, 0, 0, 1 - MU, 0, 0.07); g.addColorStop(0, "rgba(236,230,211,.4)"); g.addColorStop(1, "rgba(236,230,211,0)");
+  c.fillStyle = g; c.beginPath(); c.arc(1 - MU, 0, 0.07, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#ece6d3"; c.beginPath(); c.arc(1 - MU, 0, 6 / S, 0, Math.PI * 2); c.fill();
+}
+
+/* ===================== Cập nhật Góc Quay Realtime ===================== */
+function updateAngleControls() {
+  let deg = Math.round((theta * 180 / Math.PI) % 360);
+  if (deg < 0) deg += 360;
+  const range = document.getElementById("orbitAngleRange");
+  const val = document.getElementById("orbitAngleVal");
+  if (range && document.activeElement !== range) range.value = deg;
+  if (val) val.textContent = deg + "°";
+}
+
+/* ===================== Dòng thời gian ===================== */
+let step = 0, anim = null;
+let NOW = TL.length;
+let board = docLuu(KHOA_NAY, BAN_GOC_NAY, v => v && typeof v === "object" && Object.keys(v).every(a => NHAN_VAT[a] && (v[a] === null || DIEM_L.includes(v[a]))));
+
+function viTriTai(k) {
+  const pos = {}, hist = {}, last = Math.min(k, NOW - 1);
+  for (let i = 0; i <= last; i++) for (const d of TL[i].di) {
+    (hist[d.ai] = hist[d.ai] || []).push({ den: d.den, chap: TL[i].chap });
+    pos[d.ai] = { den: d.den, phu: d.phu, chap: TL[i].chap };
+  }
+  if (k >= NOW) {
+    for (const a in pos) if (board[a] === undefined) delete pos[a];
+    for (const a in board) { 
+      if (board[a]) {
+        (hist[a] = hist[a] || []).push({ den: board[a], chap: "nay" }); 
+      }
+      pos[a] = { den: board[a], chap: "nay" }; 
+    }
+  }
+  return { pos, hist };
+}
+function chapGanNhat(ai) {
+  let r = null; TL.forEach(s => s.di.forEach(d => { if (d.ai === ai) r = { chap: s.chap, den: d.den }; })); return r;
+}
+function lpPoint(k) { return LP[k]; }
+function arcPoint(a, b, t) {
+  const ra = Math.hypot(a[0], a[1]), rb = Math.hypot(b[0], b[1]);
+  let aa = Math.atan2(a[1], a[0]), ab = Math.atan2(b[1], b[0]);
+  let d = ab - aa; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
+  if (Math.abs(d) < 1e-6) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t + Math.sin(Math.PI * t) * 0.18]; }
+  const r = ra + (rb - ra) * t + Math.sin(Math.PI * t) * 0.12, ang = aa + d * t;
+  return [r * Math.cos(ang), r * Math.sin(ang)];
+}
+function goStep(k, animate) {
+  const prev = viTriTai(step).pos; step = Math.max(0, Math.min(NOW, k));
+  const now = viTriTai(step).pos, moves = [];
+  for (const a in now) {
+    if (!now[a].den || (prev[a] && prev[a].den === now[a].den)) continue;
+    moves.push({ ai: a, from: prev[a] && prev[a].den ? lpPoint(prev[a].den) : null, to: lpPoint(now[a].den) });
+  }
+  anim = animate && !reduce && moves.length ? { t0: performance.now(), dur: 1300, moves } : null;
+  if (animate && !reduce && step < NOW && TL[step].saoChoi) comet = { t0: performance.now() };
+  renderTimeline(); buildMarks(); showStep(step);
+  if (step === NOW) { toast("Vị trí hiện tại của các nhân vật. Bạn có thể kéo thả để xếp điểm!"); return; }
+  const st = TL[step], ms = st.di.map(d => { const p = prev[d.ai]; return NHAN_VAT[d.ai].ten + (p && p.den && p.den !== d.den ? " chuyển từ " + p.den + " sang " + d.den : " ở " + d.den); });
+  toast("Chap " + st.chap + ": " + ms.join(", "));
+}
+function renderTimeline() {
+  const tl = document.getElementById("tl");
+  tl.innerHTML = '<button type="button" class="play" id="play">' + (playing ? "Dừng" : "Phát lại") + "</button>" +
+    TL.map((s, i) => '<button type="button" class="ch' + (laChapMoi(s) ? " local" : "") + '" data-step="' + i + '"' + (i === step ? ' aria-current="step"' : "") +
+      ' aria-label="Chap ' + s.chap + '"' + (laChapMoi(s) ? ' title="Mới lưu trên trình duyệt này, chưa có trong file"' : "") + "><small>chap</small><b>" + s.chap + "</b><span>" +
+      s.di.map(d => '<i style="--c:' + NHAN_VAT[d.ai].mau + '" class="' + (NHAN_VAT[d.ai].unrevealed ? "dimmed" : "") + '"></i>').join("") + "</span></button>").join("") +
+    '<button type="button" class="ch add" data-act="add" aria-label="Thêm chap mới" title="Thêm chap mới"><small>thêm</small><b>+</b></button>' +
+    '<button type="button" class="ch now" data-step="' + NOW + '"' + (step === NOW ? ' aria-current="step"' : "") +
+      ' aria-label="Vị trí hiện tại"><small>vị trí</small><b>Hiện tại</b><span>' +
+      Object.keys(board).filter(a => board[a]).map(a => '<i style="--c:' + NHAN_VAT[a].mau + '" class="' + (NHAN_VAT[a].unrevealed ? "dimmed" : "") + '"></i>').join("") + "</span></button>";
+  const cur = tl.querySelector('[aria-current="step"]'); if (cur) tl.scrollLeft = cur.offsetLeft - tl.clientWidth / 2 + cur.offsetWidth / 2;
+}
+let playing = false, playTimer = null;
+function play() {
+  playing = !playing; clearTimeout(playTimer);
+  if (playing) { goStep(0, true); const next = () => { if (!playing) return; if (step >= NOW) { playing = false; renderTimeline(); return; } playTimer = setTimeout(() => { goStep(step + 1, true); next(); }, 3600); }; next(); }
+  renderTimeline();
+}
+document.getElementById("tl").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.id === "play") return play();
+  if (b.dataset.act === "add") { e.stopPropagation(); return showForm(null); }
+  const k = +b.dataset.step;
+  if (k === step) { e.stopPropagation(); showStep(k, true); return; }   // bấm lại chap đang chọn: mở khung chi tiết
+  playing = false; clearTimeout(playTimer); goStep(k, true);
+});
+
+/* ===================== Kéo & Thả Nhân Vật khi hệ đang quay ===================== */
+let draggedTok = null, dragOffset = { x: 0, y: 0 }, dragPos = { x: 0, y: 0 }, chanBam = 0;
+
+function setupDrag(b) {
+  b.addEventListener("pointerdown", e => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    draggedTok = b; b.setPointerCapture(e.pointerId);
+    b._sx = e.clientX; b._sy = e.clientY; b._moved = false;
+    const rect = b.getBoundingClientRect(), sRect = stage.getBoundingClientRect();
+    dragOffset.x = e.clientX - rect.left; dragOffset.y = e.clientY - rect.top;
+    dragPos.x = e.clientX - sRect.left - dragOffset.x;
+    dragPos.y = e.clientY - sRect.top - dragOffset.y;
+    e.stopPropagation();
+  });
+  b.addEventListener("pointermove", e => {
+    if (draggedTok !== b) return;
+    if (!b._moved) { if (Math.hypot(e.clientX - b._sx, e.clientY - b._sy) < 6) return; b._moved = true; b.classList.add("dragging"); }
+    const sRect = stage.getBoundingClientRect();
+    dragPos.x = e.clientX - sRect.left - dragOffset.x;
+    dragPos.y = e.clientY - sRect.top - dragOffset.y;
+  });
+  const endDrag = e => {
+    if (draggedTok !== b) return;
+    b.classList.remove("dragging");
+    if (!b._moved) { draggedTok = null; return; }          // chỉ là bấm: để mở khung chi tiết như bình thường
+    chanBam = performance.now() + 350;
+    
+    // Tìm điểm L gần nhất theo tọa độ màn hình thực tế
+    const sRect = stage.getBoundingClientRect();
+    const dropX = e.clientX - sRect.left, dropY = e.clientY - sRect.top;
+    let closestL = null, minD = 75;
+
+    for (const k of ["L1", "L2", "L3", "L4", "L5"]) {
+      const [lx, ly] = toScreen(LP[k][0], LP[k][1]);
+      const d = Math.hypot(dropX - lx, dropY - ly);
+      if (d < minD) { minD = d; closestL = k; }
+    }
+
+    if (b._ai) {
+      const truoc = board[b._ai];
+      if (closestL) {
+        board[b._ai] = closestL;
+        toast("Đã chuyển " + NHAN_VAT[b._ai].ten + " đến điểm " + closestL);
+      } else if (dropX < 220 && dropY < 100) {
+        board[b._ai] = null;
+        toast("Đã cất " + NHAN_VAT[b._ai].ten + " vào Góc chờ.");
+      }
+      if (board[b._ai] === truoc) { draggedTok = null; buildMarks(); return; }
+      saveBoard();
+      if (step !== NOW) { draggedTok = null; goStep(NOW, true); return; }   // đang xem chap cũ: chuyển sang "Hiện tại" để thấy kết quả
+      showBoard(false); renderTimeline();
+    }
+    draggedTok = null;
+    buildMarks();
+  };
+  b.addEventListener("pointerup", endDrag);
+  b.addEventListener("pointercancel", endDrag);
+}
+
+/* ===================== Kéo Xoay Trực Tiếp Mặt Trăng ===================== */
+let isDraggingMoon = false, moonStartPos = { x: 0, y: 0 }, moonMoved = false;
+
+function setupMoonDrag(b) {
+  b.title = "Giữ chuột/cảm ứng để xoay Mặt Trăng quanh Trái Đất";
+  
+  b.addEventListener("pointerdown", e => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    isDraggingMoon = true;
+    moonMoved = false;
+    moonStartPos = { x: e.clientX, y: e.clientY };
+    b.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  });
+  
+  b.addEventListener("pointermove", e => {
+    if (!isDraggingMoon) return;
+    const dist = Math.hypot(e.clientX - moonStartPos.x, e.clientY - moonStartPos.y);
+    if (dist > 3) moonMoved = true;
+    
+    if (moonMoved) {
+      const sRect = stage.getBoundingClientRect();
+      const cx = e.clientX - sRect.left;
+      const cy = e.clientY - sRect.top;
+      
+      let ang = Math.atan2(CY - cy, cx - CX);
+      if (ang < 0) ang += Math.PI * 2;
+      theta = ang;
+      
+      if (view !== "ine") {
+        view = "ine";
+        document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.view === "ine"));
+      }
+      
+      updateAngleControls();
+    }
+  });
+  
+  const endMoonDrag = e => {
+    if (!isDraggingMoon) return;
+    isDraggingMoon = false;
+    if (!moonMoved) {
+      showBody("moon");
+    }
+  };
+  
+  b.addEventListener("pointerup", endMoonDrag);
+  b.addEventListener("pointercancel", endMoonDrag);
+}
+
+/* ===================== Thẻ HTML trên sơ đồ ===================== */
+let tokens = [];
+function buildMarks() {
+  marks.innerHTML = ""; tokens = [];
+  
+  // Vẽ 5 điểm L
+  for (const k of ["L1", "L2", "L3", "L4", "L5"]) {
+    const b = document.createElement("button"); b.type = "button"; 
+    b.className = "mk lp " + (DIEM[k].on ? "stable" : "unstable");
+    b.setAttribute("data-lp", k);
+    b.innerHTML = "<span>" + k + "</span>"; 
+    b.setAttribute("aria-label", "Điểm " + k); 
+    b.onclick = e => { e.stopPropagation(); showPoint(k); };
+    b._w = LP[k]; marks.appendChild(b); tokens.push(b);
+  }
+
+  // Earth & Moon
+  for (const [name, w, info] of [["Earth", [-MU, 0], "earth"], ["Moon", [1 - MU, 0], "moon"]]) {
+    const b = document.createElement("button"); b.type = "button"; 
+    b.className = "mk body" + (info === "moon" ? " moon-body" : ""); 
+    b.setAttribute("aria-label", name);
+    if (info === "moon") {
+      setupMoonDrag(b);
+    } else {
+      b.onclick = e => { e.stopPropagation(); showBody(info); };
+    }
+    b._w = w; marks.appendChild(b); tokens.push(b);
+  }
+
+  // Thẻ Nhân vật
+  const { pos } = viTriTai(step), groups = {};
+  let hasWaiting = false;
+
+  for (const ai in pos) {
+    const den = pos[ai].den;
+    if (den && LP[den]) {
+      (groups[den] = groups[den] || []).push(ai);
+      if (pos[ai].phu && LP[pos[ai].phu]) (groups[pos[ai].phu] = groups[pos[ai].phu] || []).push(ai + "*");
+    } else {
+      (groups["WAITING"] = groups["WAITING"] || []).push(ai);
+      hasWaiting = true;
+    }
+  }
+
+  // Hiển thị khung chờ nếu có nhân vật chưa xếp điểm
+  const waitingBox = document.getElementById("waitingBox");
+  if (waitingBox) waitingBox.style.display = hasWaiting ? "flex" : "none";
+
+  for (const pt in groups) {
+    groups[pt].forEach((key, idx, arr) => {
+      const ghost = key.endsWith("*"), ai = key.replace("*", ""), n = NHAN_VAT[ai];
+      const isUnrevealed = !!n.unrevealed;
+      const b = document.createElement("button"); b.type = "button"; 
+      b.className = "mk tok" + (ghost ? " ghost" : "") + (isUnrevealed ? " unrevealed" : ""); 
+      b.style.setProperty("--c", n.mau);
+      b.innerHTML = "<i></i>" + n.ten + (ghost ? "?" : isUnrevealed ? " (?)" : ""); 
+      b.setAttribute("aria-label", n.ten + (pt === "WAITING" ? " (Chờ xếp vị trí)" : " ở " + pt));
+      b.onclick = e => { e.stopPropagation(); if (performance.now() < chanBam) return; showChar(ai); };
+      b._pt = pt;
+      b._w = pt === "WAITING" ? null : LP[pt];
+      b._idx = idx; b._n = arr.length; b._ai = ai; b._ghost = ghost; 
+      marks.appendChild(b); tokens.push(b);
+      if (!ghost) setupDrag(b);
+    });
+  }
+}
+
+function placeMarks(now) {
+  for (const b of tokens) {
+    if (b === draggedTok) {
+      b.style.transform = "translate(" + dragPos.x.toFixed(1) + "px," + dragPos.y.toFixed(1) + "px)";
+      continue;
+    }
+    
+    let x, y;
+    if (b._pt === "WAITING") {
+      const bw = b.offsetWidth || 75;
+      x = 75 + b._idx * (bw + 6);
+      y = 10;
+    } else if (b._w) {
+      let w = b._w;
+      if (b._ai && anim && !b._ghost) {
+        const m = anim.moves.find(m => m.ai === b._ai);
+        if (m) { 
+          const t = Math.min(1, (now - anim.t0) / anim.dur), e = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+          if (m.from) w = arcPoint(m.from, m.to, e);
+          else { const out = [m.to[0] * 1.9, m.to[1] * 1.9 + 0.6]; w = [out[0] + (m.to[0] - out[0]) * e, out[1] + (m.to[1] - out[1]) * e]; }
+          b.style.opacity = m.from ? 1 : Math.min(1, e * 1.5); 
+        }
+      }
+      const [sx, sy] = toScreen(w[0], w[1]);
+      x = sx; y = sy;
+
+      if (b._pt) {
+        const bw = b.offsetWidth || 70, mode = b._pt === "L1" ? "lb" : (b._pt === "L2" && W < 700) ? "b" : "r";
+        if (mode === "r") { x = sx + 18; y = sy - 12 + (b._idx - (b._n - 1) / 2) * 26; }
+        else { x = mode === "lb" ? sx - 18 - bw : sx - bw / 2; y = sy + 12 + b._idx * 26; }
+        x = Math.max(4, Math.min(W - bw - 4, x)); y = Math.max(4, Math.min(H - 28, y));
+      }
+    } else {
+      continue;
+    }
+    b.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px)";
+  }
+  if (anim && now - anim.t0 > anim.dur) anim = null;
+}
+
+/* ===================== Vật thể thả thử RK4 (Mang màu riêng của từng điểm) ===================== */
+let parts = [];
+function addPart(k) {
+  const off = k === "L3" ? 0.005 : (k === "L4" || k === "L5") ? 0.006 : 0.004, a = Math.random() * Math.PI * 2;
+  parts.push({ k, s: [LP[k][0] + off * Math.cos(a), LP[k][1] + off * Math.sin(a), 0, 0], t: 0, trail: [], gone: false, told: false, fade: 1 });
+  if (parts.length > 12) parts.shift();
+}
+function deriv(s) { const g = grad(s[0], s[1]); return [s[2], s[3], 2 * s[3] + g[0], -2 * s[2] + g[1]]; }
+function rk4(s, h) {
+  const k1 = deriv(s), a = s.map((v, i) => v + h / 2 * k1[i]), k2 = deriv(a), b = s.map((v, i) => v + h / 2 * k2[i]), k3 = deriv(b), c = s.map((v, i) => v + h * k3[i]), k4 = deriv(c);
+  return s.map((v, i) => v + h / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+}
+function stepParts(dt) {
+  const h = 0.001, n = Math.ceil(dt / h);
+  for (const p of parts) {
+    if (p.gone) { p.fade -= dt * 0.6; continue; }
+    for (let i = 0; i < n; i++) {
+      p.s = rk4(p.s, dt / n); p.t += dt / n;
+      const r1 = Math.hypot(p.s[0] + MU, p.s[1]), r2 = Math.hypot(p.s[0] - 1 + MU, p.s[1]);
+      if (r1 < 0.018 || r2 < 0.006 || Math.hypot(p.s[0], p.s[1]) > 2.6) { p.gone = true; if (!p.told) { p.told = true; toast("Vật thả ở " + p.k + (r2 < 0.006 ? " rơi vào Moon" : r1 < 0.018 ? " rơi về Earth" : " bay khỏi hệ") + " sau khoảng " + Math.round(p.t * NGAY_MOI_DON_VI) + " ngày."); } break; }
+    }
+    p.trail.push([p.s[0], p.s[1]]); if (p.trail.length > 900) p.trail.shift();
+    const d = Math.hypot(p.s[0] - LP[p.k][0], p.s[1] - LP[p.k][1]);
+    if (!p.told && !DIEM[p.k].on && d > 0.2) { p.told = true; toast("Vật thả ở " + p.k + " đã trôi khỏi điểm sau khoảng " + Math.round(p.t * NGAY_MOI_DON_VI) + " ngày."); }
+    if (!p.told && DIEM[p.k].on && p.t > 30) { p.told = true; toast("Vật thả ở " + p.k + " vẫn quanh quẩn gần điểm sau khoảng " + Math.round(p.t * NGAY_MOI_DON_VI / 30) + " tháng."); }
+  }
+  parts = parts.filter(p => p.fade > 0);
+}
+document.querySelectorAll("[data-drop]").forEach(b => b.addEventListener("click", e => {
+  e.stopPropagation(); const k = b.dataset.drop;
+  if (k === "all") ["L1", "L2", "L3", "L4", "L5"].forEach(addPart); else addPart(k);
+}));
+document.getElementById("clear").addEventListener("click", e => { e.stopPropagation(); parts = []; });
+
+/* ===================== Sao chổi ===================== */
+let comet = null;
+function drawComet(now) {
+  if (!comet) return; const t = (now - comet.t0) / 2200; if (t > 1) { comet = null; return; }
+  const a = [-1.9, 1.35], b = [-0.35, 0.15], e = 1 - Math.pow(1 - t, 3), x = a[0] + (b[0] - a[0]) * e, y = a[1] + (b[1] - a[1]) * e;
+  const fade = t < .75 ? 1 : (1 - t) / .25, g = ctx.createLinearGradient(x, y, x - 0.55, y + 0.45);
+  g.addColorStop(0, "rgba(236,230,211," + (0.9 * fade) + ")"); g.addColorStop(1, "rgba(236,230,211,0)");
+  ctx.strokeStyle = g; ctx.lineWidth = 4 / S; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 0.55, y + 0.45); ctx.stroke();
+  ctx.fillStyle = "rgba(255,250,235," + fade + ")"; ctx.beginPath(); ctx.arc(x, y, 5 / S, 0, Math.PI * 2); ctx.fill();
+}
+
+/* ===================== Vòng lặp vẽ Realtime ===================== */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const simDt = dt * 0.5 * simSpeed;
+  
+  if (!isSimPaused) {
+    if (view === "ine" && !reduce) theta += simDt; else if (view === "rot") theta = 0;
+    earthSpin += simDt * 2;
+    stepParts(simDt);
+  }
+
+  updateAngleControls();
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = "#0c1430"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Nền sao tĩnh
+  drawStars();
+
+  // Xoay hệ quy chiếu
+  ctx.translate(CX * DPR, CY * DPR); ctx.rotate(-theta); ctx.drawImage(layer, -LD / 2, -LD / 2);
+  worldTransform();
+  
+  const { hist } = viTriTai(step);
+  for (const ai in hist) {
+    const h = hist[ai]; if (h.length < 2) continue; ctx.strokeStyle = NHAN_VAT[ai].mau; ctx.globalAlpha = NHAN_VAT[ai].unrevealed ? .2 : .45; ctx.lineWidth = 1.5 / S; ctx.setLineDash([5 / S, 4 / S]);
+    for (let i = 1; i < h.length; i++) { if (h[i - 1].den === h[i].den) continue; ctx.beginPath(); for (let s = 0; s <= 30; s++) { const p = arcPoint(LP[h[i - 1].den], LP[h[i].den], s / 30); s ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); } ctx.stroke(); }
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+
+  // Vẽ vật thể nhỏ với màu đặc trưng riêng của từng điểm L
+  for (const p of parts) {
+    const lpConf = LP_COLORS[p.k] || { rgb: "242,184,75" };
+    const col = lpConf.rgb;
+    ctx.lineWidth = 1.6 / S; 
+    ctx.beginPath(); 
+    p.trail.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]));
+    ctx.strokeStyle = "rgba(" + col + "," + (0.65 * p.fade) + ")"; 
+    ctx.stroke();
+    if (!p.gone) { 
+      ctx.fillStyle = "rgba(" + col + ",1)"; 
+      ctx.beginPath(); 
+      ctx.arc(p.s[0], p.s[1], 3.5 / S, 0, Math.PI * 2); 
+      ctx.fill(); 
+    }
+  }
+
+  drawComet(now);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  placeMarks(now);
+  requestAnimationFrame(frame);
+}
+
+/* ===================== Khung thông tin Panel ===================== */
+const link = (id, text) => id ? '<a class="open" href="' + NOTION + id + '" target="_blank" rel="noopener">' + text + "</a>" : "";
+function openSheet() { panel.classList.add("open-sheet"); }
+function closeSheet() { panel.classList.remove("open-sheet"); }
+function setPanel(html, open) {
+  panel.innerHTML = '<button type="button" class="close" aria-label="Đóng" onclick="closeSheet()">✕</button>' + html;
+  if (open) openSheet();
+}
+function showIntro(open) {
+  setPanel('<h2>Cách xem</h2><div class="kicker">Hệ Earth – Moon, mô phỏng quay quỹ đạo quán tính Realtime</div>' +
+    "<p>• Bấm vào điểm L, Earth, Moon hoặc tên nhân vật để xem chi tiết.</p>" +
+    "<p>• <b>Kéo trực tiếp Mặt Trăng</b> hoặc dùng thanh trượt <b>Góc quay Mặt Trăng</b> ở góc dưới để xoay cả hệ Mặt Trăng quanh Trái Đất.</p>" +
+    "<p>• Bạn có thể <b>kéo thả tên nhân vật</b> để xếp vào bất kỳ điểm Lagrange nào tùy ý.</p>" +
+    "<p>• Shinobu đang ở <b>Góc chờ xếp</b> (góc trên bên trái). Bạn có thể kéo cô ấy vào sơ đồ khi cần!</p>" +
+    "<p>• Có màn tỏ tình mới? Bấm <b>+</b> trên thanh chap để thêm chap, chọn ai đứng ở điểm nào và ghi chú. Bấm lại một chap đang chọn để sửa hoặc xóa chap đó.</p>" +
+    link(TRANG_KIEN_THUC, "Mở trang Kiến thức về Lagrange point") + "<br>" + link(TRANG_TONG_HOP, "Mở trang Phân tích vị trí đứng"), open);
+}
+function showBoard(open) {
+  const rows = Object.keys(NHAN_VAT).map(a => {
+    const n = NHAN_VAT[a], g = chapGanNhat(a), cur = board[a];
+    const note = cur ? (!g ? "chưa có chap ghi nhận" : g.den === cur ? "khớp với chap " + g.chap : "chap gần nhất (" + g.chap + ") ghi " + g.den) : "đang nằm ở Góc chờ xếp";
+    return '<div class="ev' + (n.unrevealed ? " dimmed" : "") + '" style="--c:' + n.mau + '"><strong>' + n.ten + ": " + (cur || "Chưa xếp") + (n.unrevealed ? " (?)" : "") + "</strong><small>" + note + "</small></div>";
+  }).join("");
+  setPanel("<h2>Hiện tại</h2><div class=\"kicker\">Vị trí xếp hiện tại trên sơ đồ; kéo tên các cô để đổi</div>" + rows +
+    '<p class="small">Chap thêm mới và cách xếp ở đây được lưu trên trình duyệt này.</p>' +
+    '<div class="btns"><button type="button" data-act="add">Thêm chap mới</button><button type="button" data-act="code">Lấy mã để lưu vào file</button><button type="button" data-act="reset">Đặt lại theo file</button></div>' +
+    '<div id="codebox" hidden><p class="small">Mở file index.html, thay toàn bộ khối <code>const DONG_THOI_GIAN = [ … ];</code> và dòng <code>const VI_TRI_HIEN_TAI = …;</code> bằng đoạn dưới đây, rồi đưa file lên lại. Sau đó ai mở trang cũng thấy.</p><textarea readonly rows="8"></textarea></div>', open);
+}
+
+function showForm(idx) {
+  const s = idx == null ? null : TL[idx];
+  const opts = sel => DIEM_L.map(k => "<option" + (sel === k ? " selected" : "") + ">" + k + "</option>").join("");
+  const rows = Object.keys(NHAN_VAT).map(a => {
+    const n = NHAN_VAT[a], d = s ? s.di.find(x => x.ai === a) : null;
+    return '<div class="frow" style="--c:' + n.mau + '"><span class="fname"><i></i>' + n.ten + "</span>" +
+      '<select data-ai="' + a + '" data-k="den" aria-label="' + n.ten + ' đứng ở"><option value="">không có</option>' + opts(d && d.den) + "</select>" +
+      '<select data-ai="' + a + '" data-k="phu" aria-label="Điểm thay thế của ' + n.ten + '"><option value="">không</option>' + opts(d && d.phu) + "</select></div>";
+  }).join("");
+  setPanel("<h2>" + (s ? "Sửa chap " + s.chap : "Thêm chap mới") + '</h2><div class="kicker">' + (s ? "Đổi vị trí hoặc ghi chú của chap này" : "Ghi lại một màn tỏ tình mới hay một lần đổi vị trí") + "</div>" +
+    '<form id="chapForm" class="fform" data-i="' + (s ? idx : "") + '" novalidate>' +
+    '<label class="fl">Chap số<input type="number" id="fChap" min="1" step="1" inputmode="numeric" value="' + (s ? s.chap : "") + '"></label>' +
+    '<div class="fhead"><span>Ai</span><span>Đứng ở</span><span>Hoặc (cách đọc khác)</span></div>' + rows +
+    '<label class="fl">Ghi chú: cảnh tỏ tình, bằng chứng<textarea id="fGhi" rows="4">' + (s ? esc(s.ghi) : "") + "</textarea></label>" +
+    '<label class="chk"><input type="checkbox" id="fBoard"' + (s ? "" : " checked") + "> Cập nhật luôn vị trí “Hiện tại” theo chap này</label>" +
+    '<p class="ferr" id="fErr" role="alert"></p>' +
+    '<div class="btns"><button type="submit" class="primary">' + (s ? "Lưu thay đổi" : "Lưu chap") + '</button><button type="button" data-act="cancel">Hủy</button></div></form>', true);
+  document.getElementById("fChap").focus();
+}
+panel.addEventListener("submit", e => {
+  if (e.target.id !== "chapForm") return;
+  e.preventDefault();
+  const f = e.target, idx = f.dataset.i === "" ? null : +f.dataset.i, err = document.getElementById("fErr");
+  const chap = Number(document.getElementById("fChap").value);
+  if (!Number.isInteger(chap) || chap < 1) { err.textContent = "Nhập số chap (số nguyên lớn hơn 0)."; return; }
+  const trung = TL.findIndex(x => x.chap === chap);
+  if (trung !== -1 && trung !== idx) { err.textContent = "Chap " + chap + " đã có trên thanh chap. Bấm chap đó, rồi chọn “Sửa chap này”."; return; }
+  const di = [];
+  f.querySelectorAll('select[data-k="den"]').forEach(sel => {
+    if (!sel.value) return;
+    const phu = f.querySelector('select[data-k="phu"][data-ai="' + sel.dataset.ai + '"]').value, d = { ai: sel.dataset.ai, den: sel.value };
+    if (phu && phu !== sel.value) d.phu = phu;
+    di.push(d);
+  });
+  if (!di.length) { err.textContent = "Chọn vị trí cho ít nhất một người."; return; }
+  const ghi = document.getElementById("fGhi").value.trim() || "Chưa có ghi chú.";
+  const entry = Object.assign({}, idx != null ? TL[idx] : {}, { chap, di, ghi });
+  if (idx != null) TL[idx] = entry; else TL.push(entry);
+  TL.sort((a, b) => a.chap - b.chap); NOW = TL.length; saveTL();
+  if (document.getElementById("fBoard").checked) { di.forEach(d => { board[d.ai] = d.den; }); saveBoard(); }
+  step = Math.min(step, NOW); goStep(TL.indexOf(entry), true); showStep(step, true);
+  toast((idx != null ? "Đã lưu thay đổi cho chap " : "Đã thêm chap ") + chap + ".");
+});
+panel.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act;
+  if (act === "add") return showForm(null);
+  if (act === "edit") return showForm(+b.dataset.i);
+  if (act === "cancel") return showStep(step, true);
+  if (act === "del") {
+    if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Bấm lần nữa để xóa"; return; }
+    const i = +b.dataset.i, c = TL[i].chap; TL.splice(i, 1); NOW = TL.length; saveTL();
+    step = Math.min(i, NOW); goStep(step, false); toast("Đã xóa chap " + c + "."); return;
+  }
+  if (act === "reset") {
+    if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Bấm lần nữa: bỏ mọi thay đổi trên trang"; return; }
+    TL = JSON.parse(BAN_GOC_TL); board = JSON.parse(BAN_GOC_NAY); NOW = TL.length;
+    try { localStorage.removeItem(KHOA_TL); localStorage.removeItem(KHOA_NAY); } catch (_) {}
+    step = NOW; goStep(NOW, false); showBoard(true); toast("Đã đặt lại theo dữ liệu trong file."); return;
+  }
+  if (act === "code") {
+    const code = "const DONG_THOI_GIAN = " + JSON.stringify(TL, null, 2) + ";\n\nconst VI_TRI_HIEN_TAI = " + JSON.stringify(board) + ";";
+    const box = document.getElementById("codebox"), ta = box.querySelector("textarea"); ta.value = code; box.hidden = false; ta.focus(); ta.select();
+    try { navigator.clipboard.writeText(code).then(() => toast("Đã chép mã vào bộ nhớ tạm."), () => {}); } catch (_) {}
+  }
+});
+function showStep(k, open) {
+  if (k === NOW) return showBoard(!!open);
+  const s = TL[k], who = s.di.map(d => NHAN_VAT[d.ai]);
+  setPanel("<h2>Chap " + s.chap + '</h2><div class="kicker">' + s.di.map(d => NHAN_VAT[d.ai].ten + " ở " + d.den + (d.phu ? " (hoặc " + d.phu + ")" : "")).join(", ") + "</div>" +
+    '<div class="ev" style="--c:' + who[0].mau + '"><p>' + esc(s.ghi) + "</p></div>" +
+    (laChapMoi(s) ? '<p class="small">Chap này mới lưu trên trình duyệt này. Ở bước “Hiện tại”, bấm “Lấy mã để lưu vào file” để giữ lại cho mọi người.</p>' : "") +
+    '<div class="btns"><button type="button" data-act="edit" data-i="' + k + '">Sửa chap này</button><button type="button" data-act="del" data-i="' + k + '">Xóa chap này</button></div>' +
+    s.di.map(d => link(NHAN_VAT[d.ai].trang, "Mở trang phân tích của " + NHAN_VAT[d.ai].ten)).join("<br>"), !!open);
+}
+function showPoint(k) {
+  const D = DIEM[k], who = [];
+  TL.forEach(s => s.di.forEach(d => { if (d.den === k || d.phu === k) who.push({ s, d, alt: d.phu === k }); }));
+  setPanel("<h2>" + k + '</h2><span class="state ' + (D.on ? "st" : "un") + '">' + (D.on ? "Ổn định" : "Không ổn định") + "</span>" +
+    "<p>" + D.vi + "</p><p>" + D.ly + "</p>" +
+    "<h3>Ai từng đứng ở " + k + "</h3>" +
+    (who.length ? who.map(w => '<div class="ev" style="--c:' + NHAN_VAT[w.d.ai].mau + '"><strong>' + NHAN_VAT[w.d.ai].ten + "</strong>, chap " + w.s.chap + (w.alt ? " (cách đọc khác)" : "") + "</div>").join("") : "<p>Chưa có ai trong các chap đã phân tích.</p>") +
+    link(TRANG_KIEN_THUC, "Mở trang Kiến thức về Lagrange point"), true);
+}
+function showBody(which) {
+  if (which === "earth") setPanel("<h2>Earth</h2><div class=\"kicker\">Thiên thể lớn nhất trong hệ</div><p>Cả hệ quay quanh trọng tâm chung nằm gần tâm của Earth.</p>", true);
+  else setPanel("<h2>Moon</h2><div class=\"kicker\">Mốc để xác định vị trí</div><p>Moon quay quanh Earth khoảng 27,3 ngày một vòng. Cả năm điểm Lagrange quay theo cùng nhịp đó.</p><p><i>Gợi ý: Bấm giữ Mặt Trăng và kéo xung quanh Trái Đất để xoay hệ thống!</i></p>" + link(TRANG_TONG_HOP, "Mở trang Phân tích vị trí đứng"), true);
+}
+function showChar(ai) {
+  const n = NHAN_VAT[ai], evs = [];
+  TL.forEach(s => s.di.forEach(d => { if (d.ai === ai) evs.push({ s, d }); }));
+  setPanel("<h2>" + n.ten + (n.unrevealed ? " (Chưa lộ diện)" : "") + '</h2><div class="kicker">' + (evs.length ? "Hành trình: " + evs.map(e => e.d.den + (e.d.phu ? "/" + e.d.phu : "")).join(", rồi ") : "Chưa có hành trình chính thức") + "</div>" +
+    (n.chuaRo ? "<p>" + n.chuaRo + "</p>" : "") +
+    evs.map(e => '<div class="ev" style="--c:' + n.mau + '"><strong>Chap ' + e.s.chap + ": " + e.d.den + (e.d.phu ? " hoặc " + e.d.phu : "") + "</strong><small>" + esc(e.s.ghi) + "</small></div>").join("") +
+    '<div class="ev" style="--c:' + n.mau + '"><strong>Hiện tại: ' + (board[ai] || "Đang ở Góc chờ xếp") + "</strong></div>" +
+    link(n.trang, "Mở trang phân tích của " + n.ten), true);
+}
+let toastTimer = null;
+function toast(msg) { toastEl.textContent = msg; toastEl.classList.add("on"); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove("on"), 4200); }
+
+document.addEventListener("click", e => { if (!panel.contains(e.target) && !e.target.closest(".mk,#how")) closeSheet(); });
+
+/* ===================== Xử lý Điều khiển & Nút Bấm ===================== */
+const ctlBar = document.getElementById("ctlBar"), foldBtn = document.getElementById("foldBtn");
+const foldIcon = document.getElementById("foldIcon"), foldText = document.getElementById("foldText");
+let isCollapsed = false;
+
+foldBtn.addEventListener("click", () => {
+  isCollapsed = !isCollapsed;
+  ctlBar.classList.toggle("collapsed", isCollapsed);
+  foldBtn.setAttribute("aria-expanded", !isCollapsed);
+  foldIcon.textContent = isCollapsed ? "▲" : "▼";
+  foldText.textContent = isCollapsed ? "Mở rộng khay" : "Thu gọn khay";
+  setTimeout(() => resize(), 260);
+});
+
+document.getElementById("btnPauseSim").addEventListener("click", function() {
+  isSimPaused = !isSimPaused;
+  this.textContent = isSimPaused ? "Quay tiếp" : "Tạm dừng quay";
+});
+
+document.getElementById("simSpeedRange").addEventListener("input", function(e) {
+  simSpeed = parseFloat(e.target.value);
+  document.getElementById("simSpeedVal").textContent = simSpeed.toFixed(1) + "x";
+});
+
+// Sự kiện cho thanh trượt xoay Mặt Trăng
+const orbitAngleRange = document.getElementById("orbitAngleRange");
+if (orbitAngleRange) {
+  orbitAngleRange.addEventListener("input", e => {
+    const deg = parseFloat(e.target.value);
+    theta = (deg * Math.PI) / 180;
+    if (view !== "ine") {
+      view = "ine";
+      document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.view === "ine"));
+    }
+    updateAngleControls();
+  });
+}
+
+// Sự kiện cho các nút xoay nhanh (+45°, +90°, -45°)
+document.querySelectorAll("[data-rotate]").forEach(btn => {
+  btn.addEventListener("click", e => {
+    e.stopPropagation();
+    const stepDeg = parseFloat(btn.dataset.rotate);
+    theta += (stepDeg * Math.PI) / 180;
+    while (theta < 0) theta += Math.PI * 2;
+    while (theta >= Math.PI * 2) theta -= Math.PI * 2;
+    if (view !== "ine") {
+      view = "ine";
+      document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.view === "ine"));
+    }
+    updateAngleControls();
+  });
+});
+
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+  view = b.dataset.view; document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  toast(view === "ine" ? "Nhìn từ bên ngoài: Moon quay quanh Earth, và năm điểm Lagrange quay theo." : "Quay cùng Moon: năm điểm Lagrange đứng yên.");
+}));
+document.getElementById("how").addEventListener("click", e => { e.stopPropagation(); showIntro(true); });
+new ResizeObserver(() => resize()).observe(stage);
+resize(); goStep(NOW, false); showIntro(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>
